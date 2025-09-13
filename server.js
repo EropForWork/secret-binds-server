@@ -7,12 +7,16 @@ require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5000",
+  process.env.FRONTEND_URL,
+];
 // Поддержка JSON и CORS
 app.use(express.json());
 app.use(
   cors({
-    origin: ["https://твой-сайт.vercel.app"], // 👈 ТОЛЬКО ТВОЙ САЙТ!
+    origin: allowedOrigins,
     credentials: true,
   })
 );
