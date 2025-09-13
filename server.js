@@ -7,11 +7,7 @@ require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5000",
-  process.env.FRONTEND_URL,
-];
+const allowedOrigins = ["http://localhost:5173", process.env.FRONTEND_URL];
 // Поддержка JSON и CORS
 app.use(express.json());
 app.use(
@@ -28,12 +24,12 @@ mongoose
   .catch((err) => console.error("❌ Ошибка подключения к MongoDB:", err));
 
 // Модель заметки
-const NoteSchema = new mongoose.Schema({
+const CardSchema = new mongoose.Schema({
   text: String,
   createdAt: { type: Date, default: Date.now },
 });
 
-const Note = mongoose.model("Note", NoteSchema);
+const Card = mongoose.model("Card", CardSchema);
 
 // Модель пользователя (только один!)
 const UserSchema = new mongoose.Schema({
@@ -46,24 +42,24 @@ const User = mongoose.model("User", UserSchema);
 // 🔐 АВТОРИЗАЦИЯ
 
 // Регистрация — только один раз!
-app.post("/api/auth/register", async (req, res) => {
-  const { username, password } = req.body;
+// app.post("/api/auth/register", async (req, res) => {
+//   const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ message: "Логин и пароль обязательны" });
-  }
+//   if (!username || !password) {
+//     return res.status(400).json({ message: "Логин и пароль обязательны" });
+//   }
 
-  const existingUser = await User.findOne({ username });
-  if (existingUser) {
-    return res.status(400).json({ message: "Пользователь уже существует" });
-  }
+//   const existingUser = await User.findOne({ username });
+//   if (existingUser) {
+//     return res.status(400).json({ message: "Пользователь уже существует" });
+//   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = new User({ username, password: hashedPassword });
-  await user.save();
+//   const hashedPassword = await bcrypt.hash(password, 10);
+//   const user = new User({ username, password: hashedPassword });
+//   await user.save();
 
-  res.status(201).json({ message: "Регистрация успешна! Теперь войди." });
-});
+//   res.status(201).json({ message: "Регистрация успешна! Теперь войди." });
+// });
 
 // Логин — выдаём токен
 app.post("/api/auth/login", async (req, res) => {
@@ -104,36 +100,36 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// GET /api/notes — получить все заметки
-app.get("/api/notes", authenticateToken, async (req, res) => {
+// GET /api/cards — получить все заметки
+app.get("/api/cards", authenticateToken, async (req, res) => {
   try {
-    const notes = await Note.find().sort({ createdAt: -1 });
-    res.json(notes);
+    const cards = await Card.find().sort({ createdAt: -1 });
+    res.json(cards);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// POST /api/notes — создать заметку
-app.post("/api/notes", authenticateToken, async (req, res) => {
+// POST /api/cards — создать заметку
+app.post("/api/cards", authenticateToken, async (req, res) => {
   const { text } = req.body;
   if (!text || text.trim() === "") {
     return res.status(400).json({ message: "Заметка не может быть пустой" });
   }
 
-  const note = new Note({ text });
+  const card = new Card({ text });
   try {
-    const savedNote = await note.save();
-    res.status(201).json(savedNote);
+    const savedCard = await card.save();
+    res.status(201).json(savedCard);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// DELETE /api/notes/:id — удалить заметку
-app.delete("/api/notes/:id", authenticateToken, async (req, res) => {
+// DELETE /api/cards/:id — удалить заметку
+app.delete("/api/cards/:id", authenticateToken, async (req, res) => {
   try {
-    const result = await Note.findByIdAndDelete(req.params.id);
+    const result = await Card.findByIdAndDelete(req.params.id);
     if (!result) return res.status(404).json({ message: "Заметка не найдена" });
     res.json({ message: "Заметка удалена" });
   } catch (err) {
@@ -143,7 +139,9 @@ app.delete("/api/notes/:id", authenticateToken, async (req, res) => {
 
 // Проверка работоспособности
 app.get("/", (req, res) => {
-  res.send("🔒 Secure Notes API — работает! Подключись через React.");
+  res.send(
+    "Сервер запущен! Подключись через https://polite-banoffee-4ee6f8.netlify.app/."
+  );
 });
 
 // Запуск сервера
