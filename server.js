@@ -50,6 +50,11 @@ const cardSchema = new mongoose.Schema({
       description: String,
     },
   ],
+  order: {
+    type: Number,
+    default: 0, // По умолчанию — 0, новые карточки будут внизу
+    index: true, // 👈 Опционально: ускоряет сортировку
+  },
 });
 
 const Card = mongoose.model("Card", cardSchema);
@@ -134,7 +139,7 @@ app.get("/api/cards", authenticateToken, async (req, res) => {
 
 // POST /api/cards — создать заметку
 app.post("/api/cards", authenticateToken, async (req, res) => {
-  const { name, color, balance = 0 } = req.body;
+  const { name, color, balance = 0, order = 0 } = req.body;
 
   if (!name || name.trim() === "") {
     return res.status(400).json({ message: "Название карточки обязательно" });
@@ -160,6 +165,7 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
           description: `Добавление счёта ${name.trim()}`,
         },
       ],
+      order: order,
     });
 
     const savedCard = await newCard.save();
@@ -171,7 +177,7 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
 
 app.put("/api/cards/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { name, color, balance, operations, lastOperation } = req.body;
+  const { name, color, balance, operations, lastOperation, order } = req.body;
 
   // Валидация обязательных полей
   if (name !== undefined && (!name || name.trim() === "")) {
@@ -183,6 +189,9 @@ app.put("/api/cards/:id", authenticateToken, async (req, res) => {
   if (balance !== undefined && typeof balance !== "number") {
     return res.status(400).json({ message: "Баланс должен быть числом" });
   }
+  if (order !== undefined && typeof order !== "number") {
+    return res.status(400).json({ message: "Порядок должен быть числом" });
+  }
 
   // Разрешаем обновлять любые поля — даже null/undefined
   const updateFields = {};
@@ -191,6 +200,7 @@ app.put("/api/cards/:id", authenticateToken, async (req, res) => {
   if (balance !== undefined) updateFields.balance = balance;
   if (operations !== undefined) updateFields.operations = operations;
   if (lastOperation !== undefined) updateFields.lastOperation = lastOperation;
+  if (order !== undefined) updateFields.order = order;
 
   try {
     const card = await Card.findByIdAndUpdate(id, updateFields, {
