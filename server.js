@@ -148,6 +148,11 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
       name: name.trim(),
       color: color.trim(),
       balance: parseFloat(balance),
+      lastOperation: {
+        amount: parseFloat(balance.toFixed(2)),
+        date: new Date().toISOString(),
+        description: `Добавление счёта ${name.trim()}`,
+      },
     });
 
     const savedCard = await newCard.save();
