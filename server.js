@@ -159,24 +159,32 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
 
 app.put("/api/cards/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { name, color, balance } = req.body;
+  const { name, color, balance, operations, lastOperation } = req.body;
 
-  if (!name || name.trim() === "") {
+  // Валидация обязательных полей
+  if (name !== undefined && (!name || name.trim() === "")) {
     return res.status(400).json({ message: "Название обязательно" });
   }
-  if (!color || color.trim() === "") {
+  if (color !== undefined && (!color || color.trim() === "")) {
     return res.status(400).json({ message: "Цвет обязателен" });
   }
-  if (typeof balance !== "number") {
+  if (balance !== undefined && typeof balance !== "number") {
     return res.status(400).json({ message: "Баланс должен быть числом" });
   }
 
+  // Разрешаем обновлять любые поля — даже null/undefined
+  const updateFields = {};
+  if (name !== undefined) updateFields.name = name.trim();
+  if (color !== undefined) updateFields.color = color.trim();
+  if (balance !== undefined) updateFields.balance = balance;
+  if (operations !== undefined) updateFields.operations = operations;
+  if (lastOperation !== undefined) updateFields.lastOperation = lastOperation;
+
   try {
-    const card = await Card.findByIdAndUpdate(
-      id,
-      { name: name.trim(), color: color.trim(), balance },
-      { new: true, runValidators: true }
-    );
+    const card = await Card.findByIdAndUpdate(id, updateFields, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!card) {
       return res.status(404).json({ message: "Карточка не найдена" });
