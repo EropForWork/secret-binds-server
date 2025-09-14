@@ -157,14 +157,51 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
   }
 });
 
+app.put("/api/cards/:id", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { name, color, balance } = req.body;
+
+  if (!name || name.trim() === "") {
+    return res.status(400).json({ message: "Название обязательно" });
+  }
+  if (!color || color.trim() === "") {
+    return res.status(400).json({ message: "Цвет обязателен" });
+  }
+  if (typeof balance !== "number") {
+    return res.status(400).json({ message: "Баланс должен быть числом" });
+  }
+
+  try {
+    const card = await Card.findByIdAndUpdate(
+      id,
+      { name: name.trim(), color: color.trim(), balance },
+      { new: true, runValidators: true }
+    );
+
+    if (!card) {
+      return res.status(404).json({ message: "Карточка не найдена" });
+    }
+
+    res.json(card);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+});
+
 // DELETE /api/cards/:id — удалить заметку
 app.delete("/api/cards/:id", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const result = await Card.findByIdAndDelete(req.params.id);
-    if (!result) return res.status(404).json({ message: "Заметка не найдена" });
-    res.json({ message: "Заметка удалена" });
+    const result = await Card.findByIdAndDelete(id);
+    if (!result) {
+      return res.status(404).json({ message: "Карточка не найдена" });
+    }
+    res.json({ message: "Карточка удалена" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Ошибка сервера" });
   }
 });
 
