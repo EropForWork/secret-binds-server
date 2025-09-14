@@ -139,7 +139,7 @@ app.get("/api/cards", authenticateToken, async (req, res) => {
 
 // POST /api/cards — создать заметку
 app.post("/api/cards", authenticateToken, async (req, res) => {
-  const { name, color, balance = 0, order = 0 } = req.body;
+  const { name, color, balance = 0, order } = req.body;
 
   if (!name || name.trim() === "") {
     return res.status(400).json({ message: "Название карточки обязательно" });
@@ -149,6 +149,11 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
   }
 
   try {
+    let finalOrder = order;
+    if (finalOrder == null) {
+      const maxCard = await Card.findOne({}, { order: 1 }).sort({ order: -1 });
+      finalOrder = maxCard ? maxCard.order + 1 : 0;
+    }
     const newCard = new Card({
       name: name.trim(),
       color: color.trim(),
@@ -165,7 +170,7 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
           description: `Добавление счёта ${name.trim()}`,
         },
       ],
-      order: order,
+      order: finalOrder,
     });
 
     const savedCard = await newCard.save();
