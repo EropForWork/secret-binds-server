@@ -24,13 +24,39 @@ mongoose
   .catch((err) => console.error("❌ Ошибка подключения к MongoDB:", err));
 
 // Модель заметки
-const CardSchema = new mongoose.Schema({
-  text: String,
-  createdAt: { type: Date, default: Date.now },
+const cardSchema = new mongoose.Schema({
+  id: {
+    type: Number,
+    required: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+  color: {
+    type: String,
+    required: true,
+  },
+  balance: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+  lastOperation: {
+    amount: Number,
+    date: String,
+    description: String,
+  },
+  operations: [
+    {
+      amount: Number,
+      date: String,
+      description: String,
+    },
+  ],
 });
 
-const Card = mongoose.model("Card", CardSchema);
-
+const Card = mongoose.model("Card", cardSchema);
 // Модель пользователя (только один!)
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
@@ -112,14 +138,23 @@ app.get("/api/cards", authenticateToken, async (req, res) => {
 
 // POST /api/cards — создать заметку
 app.post("/api/cards", authenticateToken, async (req, res) => {
-  const { text } = req.body;
-  if (!text || text.trim() === "") {
-    return res.status(400).json({ message: "Заметка не может быть пустой" });
+  const { name, color, balance = 0 } = req.body;
+
+  if (!name || name.trim() === "") {
+    return res.status(400).json({ message: "Название карточки обязательно" });
+  }
+  if (!color || color.trim() === "") {
+    return res.status(400).json({ message: "Цвет карточки обязателен" });
   }
 
-  const card = new Card({ text });
   try {
-    const savedCard = await card.save();
+    const newCard = new Card({
+      name: name.trim(),
+      color: color.trim(),
+      balance: parseFloat(balance),
+    });
+
+    const savedCard = await newCard.save();
     res.status(201).json(savedCard);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -134,6 +169,53 @@ app.delete("/api/cards/:id", authenticateToken, async (req, res) => {
     res.json({ message: "Заметка удалена" });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// === НОВЫЙ ЭНДПОИНТ: ДОБАВИТЬ ТРАНЗАКЦИЮ === //
+app.post("/api/cards/:id/transactions", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { amount, description } = req.body;
+
+  // Валидация
+  if (typeof amount !== "number") {
+    return res.status(400).json({ message: "Сумма должна быть числом" });
+  }
+  if (!description || description.trim() === "") {
+    return res.status(400).json({ message: "Описание обязательно" });
+  }
+
+  try {
+    // Найти карточку
+    const card = await Card.findById(id);
+    if (!card) {
+      return res.status(404).json({ message: "Карточка не найдена" });
+    }
+
+    // Создать новую операцию
+    const newOperation = {
+      amount,
+      description: description.trim(),
+      date: new Date().toISOString(), // ISO формат даты
+    };
+
+    // Добавить в историю
+    card.operations.push(newOperation);
+
+    // Обновить баланс
+    card.balance += amount;
+
+    // Обновить последнюю операцию
+    card.lastOperation = newOperation;
+
+    // Сохранить
+    await card.save();
+
+    // Ответ — обновлённая карточка
+    res.status(201).json(card);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Ошибка сервера" });
   }
 });
 
