@@ -52,9 +52,10 @@ const cardSchema = new mongoose.Schema({
   ],
   order: {
     type: Number,
-    default: 0, // По умолчанию — 0, новые карточки будут внизу
-    index: true, // 👈 Опционально: ускоряет сортировку
+    default: 0,
+    index: true,
   },
+  userUid: String,
 });
 
 const Card = mongoose.model("Card", cardSchema);
@@ -130,14 +131,17 @@ const authenticateToken = (req, res, next) => {
 // GET /api/cards — получить все заметки
 app.get("/api/cards", authenticateToken, async (req, res) => {
   try {
-    const cards = await Card.find().sort({ createdAt: -1 });
+    // Исправлено: req.user.id вместо req.userUid
+    const cards = await Card.find({ userUid: req.user.id }).sort({
+      createdAt: -1,
+    });
     res.json(cards);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// POST /api/cards — создать заметку
+// POST /api/cards — создать карточку
 app.post("/api/cards", authenticateToken, async (req, res) => {
   const { name, color, balance = 0, order } = req.body;
 
@@ -171,6 +175,8 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
         },
       ],
       order: finalOrder,
+      // Исправлено: req.user.id вместо req.userUid
+      userUid: req.user.id,
     });
 
     const savedCard = await newCard.save();
@@ -180,11 +186,16 @@ app.post("/api/cards", authenticateToken, async (req, res) => {
   }
 });
 
+// PUT /api/cards/:id — обновить карточку
 app.put("/api/cards/:id", authenticateToken, async (req, res) => {
+  const userUid = req.user?.id;
+  if (!userUid) {
+    return res.status(401).json({ message: "Пользователь не авторизован" });
+  }
   const { id } = req.params;
   const { name, color, balance, operations, lastOperation, order } = req.body;
 
-  // Валидация обязательных полей
+  // Валидация
   if (name !== undefined && (!name || name.trim() === "")) {
     return res.status(400).json({ message: "Название обязательно" });
   }
@@ -198,7 +209,6 @@ app.put("/api/cards/:id", authenticateToken, async (req, res) => {
     return res.status(400).json({ message: "Порядок должен быть числом" });
   }
 
-  // Разрешаем обновлять любые поля — даже null/undefined
   const updateFields = {};
   if (name !== undefined) updateFields.name = name.trim();
   if (color !== undefined) updateFields.color = color.trim();
@@ -208,13 +218,16 @@ app.put("/api/cards/:id", authenticateToken, async (req, res) => {
   if (order !== undefined) updateFields.order = order;
 
   try {
-    const card = await Card.findByIdAndUpdate(id, updateFields, {
-      new: true,
-      runValidators: true,
-    });
+    const card = await Card.findOneAndUpdate(
+      { _id: id, userUid: userUid },
+      updateFields,
+      { new: true, runValidators: true }
+    );
 
     if (!card) {
-      return res.status(404).json({ message: "Карточка не найдена" });
+      return res
+        .status(404)
+        .json({ message: "Карточка не найдена или недоступна" });
     }
 
     res.json(card);
@@ -224,14 +237,17 @@ app.put("/api/cards/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// DELETE /api/cards/:id — удалить заметку
+// DELETE /api/cards/:id — удалить карточку
 app.delete("/api/cards/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
+  const userUid = req.user?.id;
 
   try {
-    const result = await Card.findByIdAndDelete(id);
+    const result = await Card.findOneAndDelete({ _id: id, userUid: userUid });
     if (!result) {
-      return res.status(404).json({ message: "Карточка не найдена" });
+      return res
+        .status(404)
+        .json({ message: "Карточка не найдена или недоступна" });
     }
     res.json({ message: "Карточка удалена" });
   } catch (err) {
@@ -244,6 +260,7 @@ app.delete("/api/cards/:id", authenticateToken, async (req, res) => {
 app.post("/api/cards/:id/transactions", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { amount, description } = req.body;
+  const userUid = req.user?.id;
 
   // Валидация
   if (typeof amount !== "number") {
@@ -254,39 +271,30 @@ app.post("/api/cards/:id/transactions", authenticateToken, async (req, res) => {
   }
 
   try {
-    // Найти карточку
-    const card = await Card.findById(id);
+    const card = await Card.findOne({ _id: id, userUid: userUid });
     if (!card) {
-      return res.status(404).json({ message: "Карточка не найдена" });
+      return res
+        .status(404)
+        .json({ message: "Карточка не найдена или недоступна" });
     }
 
-    // Создать новую операцию
     const newOperation = {
       amount,
       description: description.trim(),
-      date: new Date().toISOString(), // ISO формат даты
+      date: new Date().toISOString(),
     };
 
-    // Добавить в историю
     card.operations.push(newOperation);
-
-    // Обновить баланс
     card.balance += amount;
-
-    // Обновить последнюю операцию
     card.lastOperation = newOperation;
-
-    // Сохранить
     await card.save();
 
-    // Ответ — обновлённая карточка
     res.status(201).json(card);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Ошибка сервера" });
   }
 });
-
 // Проверка работоспособности
 app.get("/", (req, res) => {
   res.send(
