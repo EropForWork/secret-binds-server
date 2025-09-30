@@ -297,9 +297,7 @@ app.post("/api/cards/:id/transactions", authenticateToken, async (req, res) => {
 });
 // Проверка работоспособности
 app.get("/", (req, res) => {
-  res.send(
-    "Сервер запущен! Подключись через https://polite-banoffee-4ee6f8.netlify.app/."
-  );
+  res.send(`Сервер запущен! Подключись через ${process.env.FRONTEND_URL}`);
 });
 
 // Запуск сервера
